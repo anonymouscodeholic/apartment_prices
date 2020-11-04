@@ -1,4 +1,6 @@
-const fetch = require('node-fetch');
+import { replaceWith } from "cheerio/lib/api/manipulation";
+
+global.fetch = require("node-fetch");
 const cheerio = require('cheerio');
 
 /**
@@ -28,10 +30,33 @@ async function callApi() {
     .then(text => text);
 }
 
-async function parse(response) {
+async function parse(response: string) {
     return cheerio.load(response);
 }
 
+interface Apartment {
+    apartmentType: string;
+    neighborhood: string;
+    rooms: string;
+    houseType: string;    
+    squareMeters: number;
+    price: number;
+    pricePerSquareMeter: number;
+    constructionYear: number;
+    floor: string;
+    elevator: boolean;
+    condition: string;
+    property: string;
+    energyClass: string;
+}
+
+function asFloat(value: string) {
+    return parseFloat(value.replace(/,/g, ''));
+}
+
+function tdText(tds, index: number) {
+    return tds.eq(index).text().replace(/\t/gm, '');
+}
 
 async function main() {
     callApi()
@@ -39,14 +64,62 @@ async function main() {
     .then($ => {
         //console.log($.html());
 
-        $('#mainTable tbody').each(function(i, elm) {
-            console.log($(this).html()) // for testing do text() 
-        });       
-    }
-    );
+        const listsOfApartmentLists = $('#mainTable tbody')
+        .filter(function(i, el) {
+            return (($(this).attr('class') === 'odd' || $(this).attr('class') === 'even')) && $(this).find('td[class=section]').length > 0;
+        })
+        .map(function(i, elem) {
+            return $(this).find('tr').map(function(i2, elem2) {
+                if ($(this).children().length === 1) {
+                    return {apartmentType: $(this).children().first().find('strong').eq(0).text()};
+                } else {
+                    const tds = $(this).children();
+                    const a:Apartment = {
+                        apartmentType: null,
+                        neighborhood: tdText(tds, 0),
+                        rooms: tdText(tds, 1),
+                        houseType: tdText(tds, 2),
+                        squareMeters: asFloat(tdText(tds, 3)),
+                        price: asFloat(tdText(tds, 4)),
+                        pricePerSquareMeter: asFloat(tdText(tds, 5)),
+                        constructionYear: asFloat(tdText(tds, 6)),
+                        floor: tdText(tds, 7),
+                        elevator: tdText(tds, 8) === 'on',
+                        condition: tdText(tds, 9),
+                        property: tdText(tds, 10),
+                        energyClass: tdText(tds, 11)
+                    }
+
+                    return a;
+                }
+            });
+        }).get();
+
+        // Set apartmentType in each apartment and collect all apartments to a single list
+
+        var apartments = [];
+        var apartmentType: string = null;
+        var i;
+        for (i = 0; i < listsOfApartmentLists.length; i++) {
+            const listsOfApartments = listsOfApartmentLists[i];
+
+            var j;
+            for (j = 0; j < listsOfApartments.length; j++) {
+                if (j === 0) {
+                    apartmentType = listsOfApartments[0].apartmentType;
+                } else {
+                    listsOfApartments[j].apartmentType = apartmentType;
+                    apartments.push(listsOfApartments[j]);
+                }
+            }
+        }
+
+        return apartments;
+    })
+    .then(apartments => {
+        console.log("apartments " + apartments.length);
+    });
 }
-
-
 
 main();
 
