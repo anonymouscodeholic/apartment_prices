@@ -132,12 +132,16 @@ async function pullSinglePageApartments(postalCode: string, page: number) {
     .then($ => {
         const listsOfApartmentLists = $('#mainTable tbody')
         .filter(function(i, el) {
-            return (($(this).attr('class') === 'odd' || $(this).attr('class') === 'even')) && $(this).find('td[class=section]').length > 0;
+            return (($(this).attr('class') === 'odd' || $(this).attr('class') === 'even')) &&
+            $(this).find('td[class=section]').length > 0 &&
+            !$(this).text().includes("joten tuloksia ei"); // Omitting if no results for this apartment size
         })
-        .map(function(i, elem) {
+        .map(function(i, elem) {            
             return $(this).find('tr').map(function(i2, elem2) {
                 if ($(this).children().length === 1) {
-                    return {apartmentType: $(this).children().first().find('strong').eq(0).text()};
+                    return {
+                        apartmentTypeHeader: $(this).children().first().find('strong').eq(0).text()
+                    };
                 } else {
                     const tds = $(this).children();
                     const a:Apartment = {
@@ -164,7 +168,7 @@ async function pullSinglePageApartments(postalCode: string, page: number) {
         // Set apartmentType in each apartment and collect all apartments to a single list
 
         var apartments = [];
-        var apartmentType: string = null;
+        var apartmentTypeHeader: string = null;
         var i;
         for (i = 0; i < listsOfApartmentLists.length; i++) {
             const listsOfApartments = listsOfApartmentLists[i];
@@ -172,9 +176,9 @@ async function pullSinglePageApartments(postalCode: string, page: number) {
             var j;
             for (j = 0; j < listsOfApartments.length; j++) {
                 if (j === 0) {
-                    apartmentType = listsOfApartments[0].apartmentType;
+                    apartmentTypeHeader = listsOfApartments[0].apartmentTypeHeader;
                 } else {
-                    listsOfApartments[j].apartmentType = apartmentType;
+                    listsOfApartments[j].apartmentType = apartmentTypeHeader;
                     apartments.push(listsOfApartments[j]);
                 }
             }
