@@ -6,10 +6,65 @@ const cheerio = require('cheerio');
 /**
  * Calls the API.
  * 
- * @returns{Promise<Response} the promise
+ * Parameters, 1st call:
+ * c=
+ * cr=1
+ * ps=02100
+ * nc=0
+ * amin=
+ * amax=
+ * renderType=renderTypeTable
+ * search=1
+ * 
+ * Parameters, 2nd call
+ * cr=1
+ * ps=02100
+ * t=3
+ * l=0
+ * z=2
+ * search=1
+ * sf=0
+ * so=a
+ * renderType=renderTypeTable
+ * print=0
+ * submit=seuraava+sivu+%C2%BB
+ * 
+ * Diff
+ * Common
+ * cr=1
+ * ps=02100
+ * renderType=renderTypeTable
+ * search=1
+ * 
+ * 1st has unique
+ * c
+ * nc
+ * amin
+ * amax
+ * 
+ * 2nd has unique
+ * t=3
+ * l=0
+ * z=2
+ * sf=0
+ * so=a
+ * print=0
+ * 
+ * It seems z controls the page:
+ * 
+ * This gets the 2nd page
+ * https://asuntojen.hintatiedot.fi/haku/?cr=1&ps=02100&t=3&l=0&z=2&search=1&sf=0&so=a&renderType=renderTypeTable&print=0
+ * 
+ * and this gets the 1st page
+ * https://asuntojen.hintatiedot.fi/haku/?cr=1&ps=02100&t=3&l=0&z=1&search=1&sf=0&so=a&renderType=renderTypeTable&print=0
+ * 
+ * @returns{Promise<Response>} the promise
  */
-async function callApi() {
-    return await fetch("https://asuntojen.hintatiedot.fi/haku/?c=&cr=1&ps=02100&nc=0&amin=&amax=&renderType=renderTypeTable&search=1", {
+
+async function callApi(postalCode: string, page: number) {
+    const url:string = "https://asuntojen.hintatiedot.fi/haku/?cr=1&ps=" + postalCode + "&t=3&l=0&z=" + page + "&search=1&sf=0&so=a&renderType=renderTypeTable&print=0";
+    console.log("URL " + url);
+    return await fetch(url, {
     "headers": {
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
         "accept-language": "en-US,en;q=0.9",
@@ -72,7 +127,7 @@ function tdText(tds, index: number) {
 }
 
 async function pullApartments() {
-    return callApi()
+    return callApi("02110", 1)
     .then(text => parse(text))
     .then($ => {
         const listsOfApartmentLists = $('#mainTable tbody')
