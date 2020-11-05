@@ -94,10 +94,14 @@ async function parse(html: string) {
 }
 
 /**
- * Represents a single apartment from the site asuntojen.hintatiedot.fi. Note apartmentType 
- * is not directly available from the individual table row, but from the header.
+ * Represents a single apartment from the site asuntojen.hintatiedot.fi. 
+ * 
+ * - apartmentType: not directly available from the individual table row, but from the header.
+ * - fingerprint: attempt to have a unique key per apartment to distinguish one from another
  */
 interface Apartment {
+    id: string,
+    fingerprint: string,
     apartmentType: string;
     neighborhood: string;
     rooms: string;
@@ -145,6 +149,8 @@ async function pullSinglePageApartments(postalCode: string, page: number) {
                 } else {
                     const tds = $(this).children();
                     const a:Apartment = {
+                        id: null,
+                        fingerprint: null,
                         apartmentType: null,
                         neighborhood: tdText(tds, 0),
                         rooms: tdText(tds, 1),
@@ -188,7 +194,7 @@ async function pullSinglePageApartments(postalCode: string, page: number) {
     });
 }
 
-async function pullApartments(postalCode: string) {
+async function pullApartments(postalCode: string): Promise<Array<Apartment>> {
     const allPagesApartment = [];
     
     var page = 1;
@@ -206,8 +212,22 @@ async function pullApartments(postalCode: string) {
     return allPagesApartment;
 }
 
+/**
+ * Calculates a fingerprint for an Apartment
+ * 
+ * @param apartment the apartment
+ */
+function fingerprint(apartment: Apartment) {
+    return `${apartment.apartmentType}_${apartment.neighborhood}_${apartment.rooms}_${apartment.houseType}_${apartment.squareMeters}_${apartment.price}_${apartment.constructionYear}_${apartment.floor}`
+}
+
 async function main() {
-    pullApartments("02110").then(aps => console.log(aps));
+    pullApartments("02110")
+        .then(aps => aps.map(ap => {
+            ap.fingerprint = fingerprint(ap);
+            return aps;
+        }))
+        .then(aps => console.log(aps));
 
 }
 
