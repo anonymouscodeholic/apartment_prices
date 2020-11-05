@@ -25,15 +25,23 @@ async function callApi() {
     "body": null,
     "method": "GET",
     "mode": "cors"
-        })
-    .then(res => res.text())
-    .then(text => text);
+    })
+    .then(res => res.text());
 }
 
-async function parse(response: string) {
-    return cheerio.load(response);
+/**
+ * Parses the given HTML using Cheerio.
+ * 
+ * @param html the HTML string
+ */
+async function parse(html: string) {
+    return cheerio.load(html);
 }
 
+/**
+ * Represents a single apartment from the site asuntojen.hintatiedot.fi. Note apartmentType 
+ * is not directly available from the individual table row, but from the header.
+ */
 interface Apartment {
     apartmentType: string;
     neighborhood: string;
@@ -50,20 +58,23 @@ interface Apartment {
     energyClass: string;
 }
 
+/**
+ * Parses the value as float, understands comma as decimal separator.
+ * 
+ * @param value the value
+ */
 function asFloat(value: string) {
-    return parseFloat(value.replace(/,/g, ''));
+    return parseFloat(value.replace(/,/g, '.'));
 }
 
 function tdText(tds, index: number) {
     return tds.eq(index).text().replace(/\t/gm, '');
 }
 
-async function main() {
-    callApi()
+async function pullApartments() {
+    return callApi()
     .then(text => parse(text))
     .then($ => {
-        //console.log($.html());
-
         const listsOfApartmentLists = $('#mainTable tbody')
         .filter(function(i, el) {
             return (($(this).attr('class') === 'odd' || $(this).attr('class') === 'even')) && $(this).find('td[class=section]').length > 0;
@@ -115,12 +126,13 @@ async function main() {
         }
 
         return apartments;
-    })
-    .then(apartments => {
-        console.log("apartments " + apartments.length);
     });
 }
 
+async function main() {
+    pullApartments().then(aps => console.log(aps));
+
+}
+
+
 main();
-
-
