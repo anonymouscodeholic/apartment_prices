@@ -63,7 +63,7 @@ const cheerio = require('cheerio');
 
 async function callApi(postalCode: string, page: number) {
     const url:string = "https://asuntojen.hintatiedot.fi/haku/?cr=1&ps=" + postalCode + "&t=3&l=0&z=" + page + "&search=1&sf=0&so=a&renderType=renderTypeTable&print=0";
-    console.log("URL " + url);
+    console.log("postalCode " + postalCode + ", page: " + page + ", URL " + url);
     return await fetch(url, {
     "headers": {
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
@@ -126,8 +126,8 @@ function tdText(tds, index: number) {
     return tds.eq(index).text().replace(/\t/gm, '');
 }
 
-async function pullApartments() {
-    return callApi("02110", 1)
+async function pullSinglePageApartments(postalCode: string, page: number) {
+    return callApi(postalCode, page)
     .then(text => parse(text))
     .then($ => {
         const listsOfApartmentLists = $('#mainTable tbody')
@@ -184,8 +184,26 @@ async function pullApartments() {
     });
 }
 
+async function pullApartments(postalCode: string) {
+    const allPagesApartment = [];
+    
+    var page = 1;
+    var thisPageApartments = []
+    do {
+        thisPageApartments = await pullSinglePageApartments(postalCode, page);
+
+        if (thisPageApartments.length > 0) {
+            allPagesApartment.push(...thisPageApartments);
+        }
+
+        page++;
+    } while (thisPageApartments.length > 0);
+
+    return allPagesApartment;
+}
+
 async function main() {
-    pullApartments().then(aps => console.log(aps));
+    pullApartments("02110").then(aps => console.log(aps));
 
 }
 
