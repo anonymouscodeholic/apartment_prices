@@ -223,10 +223,12 @@ function fingerprint(apartment: Apartment) {
 
 async function main() {
     pullApartments("02110")
-        .then(aps => aps.map(ap => {
-            ap.fingerprint = fingerprint(ap);
+        .then(aps => {
+            aps.map(ap => {
+                ap.fingerprint = fingerprint(ap);
+            });
             return aps;
-        }))
+        })
         .then(aps => console.log(aps));
 
 }
