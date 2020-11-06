@@ -263,20 +263,57 @@ function databaseDir(postalCode: string, date?: string) {
 }
 
 function databaseRead(postalCode: string, date?: string): Array<Apartment> {
-    return JSON.parse(fs.readFileSync(databaseFileName(postalCode, date)));
+    const raw = fs.readFileSync(databaseFileName(postalCode, date));
+    console.log(`raw ${raw}`);
+    const x = JSON.parse(raw);
+    console.log(`x ${x}`);
+    console.log(`x.length ${x.length}`);
+
+    return x;
 }
 
 function databaseWrite(apartments: Array<Apartment>, postalCode: string, date?: string) {
-    fs.mkdirSync(databaseDir, postalCode, date);
+    const dir = databaseDir(postalCode, date);
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir);
+    }
     fs.writeFileSync(databaseFileName(postalCode, date), JSON.stringify(apartments, null, 2) , 'utf-8');
 }
 
 function databaseExists(postalCode: string, date?: string) : boolean {
-    return fs.existsSync(databaseFileName, postalCode, date);
+    return fs.existsSync(databaseFileName(postalCode, date));
 }
 
 function getPostalCodes(): Array<string> {
     return ["02110", "01100"];
+}
+
+/**
+ * Tries to read the db of yesterday of todayDate, then yesterday of that etc
+ * until finds file. If doesn't find, returns null.
+ * 
+ * @param postalCode the postal code
+ * @param todayDate the date from which yesterday to start the scan
+ */
+function readPreviousDatabase(postalCode: string, todayDate: string): Array<Apartment> {
+    console.log(`todayDate ${todayDate}`);
+    const firstDate = "20201101";
+
+    var date: string = toYesterday(parseDate(todayDate));
+
+    while (date !== firstDate) {
+        if (databaseExists(postalCode, date)) {
+            return databaseRead(postalCode, date);
+        }
+        date = toYesterday(parseDate(date));
+    }
+
+    return null;
+
+    function toYesterday(date: Date): string {
+        date.setDate(date.getDate() - 1);
+        return formatDate(date);
+    }
 }
 
 /**
@@ -299,7 +336,7 @@ function assignId(apartment: Apartment): Apartment {
  * 
  * @param date the date
  */
-function formatDate(date) {
+function formatDate(date): string {
     var d = new Date(date),
         month = '' + (d.getMonth() + 1),
         day = '' + d.getDate(),
@@ -311,6 +348,24 @@ function formatDate(date) {
         day = '0' + day;
 
     return [year, month, day].join('');
+}
+
+/**
+ * Parse a Date from str.
+ * 
+ * @param date the date as YYYYMMDD
+ */
+function parseDate(str): Date {
+    var y = str.substr(0,4),
+        m = str.substr(4,2) - 1,
+        d = str.substr(6,2);
+    var D = new Date(y,m,d);
+    if (D.getFullYear() == y && D.getMonth() == m && D.getDate() == d) {
+        return D;
+    } else {
+        console.log(`Invalid ${str}`);
+        return null;
+    }
 }
 
 async function main() {
@@ -332,9 +387,9 @@ async function main() {
                     const previousApartments: Array<Apartment> = readPreviousDatabase(postalCode, dateToday);
 
                     apartments.forEach(apartment => {
-                        const previousApartment = previousApartments.find(previousApartment => apartment.fingerprint === previousApartment.fingerprint);
+                        const previousApartment = previousApartments != null ? previousApartments.find(previousApartment => apartment.fingerprint === previousApartment.fingerprint) : null;
                         const rootApartment = rootApartments.find(rootApartment => apartment.fingerprint === rootApartment.fingerprint);
-                        if (previousApartment !== undefined) {                            
+                        if (previousApartment !== null) {                            
                             if (rootApartment === undefined) {
                                 console.log(`ERROR: BUG: apartment in previous but not in root ${apartment.fingerprint}. Not "fixing", i.e. adding to root`);
                             } else {
