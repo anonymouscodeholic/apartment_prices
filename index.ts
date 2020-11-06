@@ -1,4 +1,8 @@
+import { data } from "cheerio/lib/api/attributes";
 import { replaceWith } from "cheerio/lib/api/manipulation";
+import { mainModule } from "process";
+
+const fs = require('fs');
 
 global.fetch = require("node-fetch");
 const cheerio = require('cheerio');
@@ -94,15 +98,23 @@ async function parse(html: string) {
 }
 
 /**
- * Represents a single apartment from the site asuntojen.hintatiedot.fi. 
+ * Represents a single apartment from the site asuntojen.hintatiedot.fi plus additional meta info.
  * 
  * - apartmentType: not directly available from the individual table row, but from the header.
- * - fingerprint: attempt to have a unique key per apartment to distinguish one from another
+ * - fingerprint: attempt to have a unique key per apartment to distinguish one from another.
+ * - firstSeenDate: YYYYMMDD, when first seen in the API
+ * - lastSeenDate: YYYYMMDD, when first seen in the API
  */
 interface Apartment {
     id: string,
     fingerprint: string,
+    firstSeenDate: string,
+    lastSeenDate: string,
+
+    // Section header
     apartmentType: string;
+
+    // The rest in from each row
     neighborhood: string;
     rooms: string;
     houseType: string;    
@@ -152,6 +164,8 @@ async function pullSinglePageApartments(postalCode: string, page: number) {
                         id: null,
                         fingerprint: null,
                         apartmentType: null,
+                        firstSeenDate: null,
+                        lastSeenDate: null,
                         neighborhood: tdText(tds, 0),
                         rooms: tdText(tds, 1),
                         houseType: tdText(tds, 2),
@@ -221,17 +235,128 @@ function fingerprint(apartment: Apartment) {
     return `${apartment.apartmentType}_${apartment.neighborhood}_${apartment.rooms}_${apartment.houseType}_${apartment.squareMeters}_${apartment.price}_${apartment.constructionYear}_${apartment.floor}`
 }
 
-async function main() {
-    pullApartments("02110")
+async function pullAndFingerprint(postalCode: string): Promise<Array<Apartment>> {
+    return pullApartments(postalCode)
         .then(aps => {
             aps.map(ap => {
                 ap.fingerprint = fingerprint(ap);
             });
             return aps;
-        })
-        .then(aps => console.log(aps));
-
+        });
 }
 
+
+function databaseFileName(postalCode: string, date?: string) {
+    if (date === undefined) {
+        return `db/${postalCode}.json.gz`;
+    } else {
+        return `db/${postalCode}/${postalCode}-${date}.json.gz`;
+    }
+}
+
+function databaseDir(postalCode: string, date?: string) {
+    if (date === undefined) {
+        return `db`;
+    } else {
+        return `db/${postalCode}`;
+    }
+}
+
+function databaseRead(postalCode: string, date?: string): Array<Apartment> {
+    return JSON.parse(fs.readFileSync(databaseFileName(postalCode, date)));
+}
+
+function databaseWrite(apartments: Array<Apartment>, postalCode: string, date?: string) {
+    fs.mkdirSync(databaseDir, postalCode, date);
+    fs.writeFileSync(databaseFileName(postalCode, date), JSON.stringify(apartments, null, 2) , 'utf-8');
+}
+
+function databaseExists(postalCode: string, date?: string) : boolean {
+    return fs.existsSync(databaseFileName, postalCode, date);
+}
+
+function getPostalCodes(): Array<string> {
+    return ["02110", "01100"];
+}
+
+/**
+ * https://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid
+ */
+function uuidv4() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+}
+
+function assignId(apartment: Apartment): Apartment {
+    apartment.id = uuidv4();
+    return apartment;
+}
+
+/**
+ * Returns the date as YYYYMMDD.
+ * 
+ * @param date the date
+ */
+function formatDate(date) {
+    var d = new Date(date),
+        month = '' + (d.getMonth() + 1),
+        day = '' + d.getDate(),
+        year = d.getFullYear();
+
+    if (month.length < 2) 
+        month = '0' + month;
+    if (day.length < 2) 
+        day = '0' + day;
+
+    return [year, month, day].join('');
+}
+
+async function main() {
+    const dateToday = formatDate(new Date());
+
+    getPostalCodes()
+        .forEach(postalCode => {
+            if (databaseExists(postalCode, dateToday)) {
+                console.log(`postalCode ${postalCode} already done for ${dateToday}`);
+                return;
+            }
+            pullAndFingerprint(postalCode)
+                .then(apartments => {
+                    if (!databaseExists(postalCode)) {
+                        console.log(`No root DB for ${postalCode}, creating`);
+                        databaseWrite([], postalCode);
+                    }
+                    const rootApartments: Array<Apartment> = databaseRead(postalCode);                    
+                    const previousApartments: Array<Apartment> = readPreviousDatabase(postalCode, dateToday);
+
+                    apartments.forEach(apartment => {
+                        const previousApartment = previousApartments.find(previousApartment => apartment.fingerprint === previousApartment.fingerprint);
+                        const rootApartment = rootApartments.find(rootApartment => apartment.fingerprint === rootApartment.fingerprint);
+                        if (previousApartment !== undefined) {                            
+                            if (rootApartment === undefined) {
+                                console.log(`ERROR: BUG: apartment in previous but not in root ${apartment.fingerprint}. Not "fixing", i.e. adding to root`);
+                            } else {
+                                rootApartment.lastSeenDate = dateToday;
+                            }
+                        } else {
+                            if (rootApartment !== undefined) {
+                                console.log(`WARN: apartment not in previous, but exists in root. Very unlikely that there's exactly the same apartment again. Not creating a duplicate ${apartment.fingerprint}`);
+                            } else {
+                                const newRootApartment = Object.assign({}, apartment);
+                                newRootApartment.firstSeenDate = dateToday;
+                                newRootApartment.lastSeenDate = dateToday;
+                                assignId(newRootApartment);
+                                rootApartments.push(newRootApartment);
+                            }
+                        }
+                    });
+                    
+                    databaseWrite(rootApartments, postalCode);
+                    databaseWrite(apartments, postalCode, dateToday);
+                });
+        });
+}
 
 main();
