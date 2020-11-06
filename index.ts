@@ -263,13 +263,7 @@ function databaseDir(postalCode: string, date?: string) {
 }
 
 function databaseRead(postalCode: string, date?: string): Array<Apartment> {
-    const raw = fs.readFileSync(databaseFileName(postalCode, date));
-    console.log(`raw ${raw}`);
-    const x = JSON.parse(raw);
-    console.log(`x ${x}`);
-    console.log(`x.length ${x.length}`);
-
-    return x;
+    return JSON.parse(fs.readFileSync(databaseFileName(postalCode, date)));
 }
 
 function databaseWrite(apartments: Array<Apartment>, postalCode: string, date?: string) {
@@ -285,7 +279,7 @@ function databaseExists(postalCode: string, date?: string) : boolean {
 }
 
 function getPostalCodes(): Array<string> {
-    return ["02110", "01100"];
+    return ["02100", "02110", "00100"];
 }
 
 /**
