@@ -398,6 +398,8 @@ async function main() {
                                 newRootApartment.lastSeenDate = dateToday;
                                 assignId(newRootApartment);
                                 rootApartments.push(newRootApartment);
+
+                                console.log(`NEW: id: ${newRootApartment.id} fingerprint: ${newRootApartment.fingerprint}`);
                             }
                         }
                     });
