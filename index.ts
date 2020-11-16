@@ -1,11 +1,12 @@
 import { data } from "cheerio/lib/api/attributes";
 import { replaceWith } from "cheerio/lib/api/manipulation";
-import { mainModule } from "process";
 
 const fs = require('fs');
 
 global.fetch = require("node-fetch");
 const cheerio = require('cheerio');
+
+const postalCodesFile = "postalcodes.json";
 
 /**
  * Calls the API.
@@ -279,7 +280,16 @@ function databaseExists(postalCode: string, date?: string) : boolean {
 }
 
 function getPostalCodes(): Array<string> {
-    return ["02100", "02110", "00100"];
+    const postalCodes: Array<string> = JSON.parse(fs.readFileSync(postalCodesFile))
+        .filter((postalCodeData) => {
+            return postalCodeData.typeCode === "1"
+        })
+        .map((postalCodeData) => {
+            return postalCodeData.postalCode;
+        })
+    postalCodes.sort()
+
+    return postalCodes
 }
 
 /**
