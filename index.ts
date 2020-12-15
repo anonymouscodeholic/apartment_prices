@@ -300,7 +300,6 @@ function getPostalCodes(): Array<string> {
  * @param todayDate the date from which yesterday to start the scan
  */
 function readPreviousDatabase(postalCode: string, todayDate: string): Array<Apartment> {
-    console.log(`todayDate ${todayDate}`);
     const firstDate = "20201101";
 
     var date: string = toYesterday(parseDate(todayDate));
