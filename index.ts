@@ -246,7 +246,6 @@ async function pullAndFingerprint(postalCode: string): Promise<Array<Apartment>>
         });
 }
 
-
 function databaseFileName(postalCode: string, date?: string) {
     if (date === undefined) {
         return `db/${postalCode}.json.gz`;
@@ -299,14 +298,14 @@ function getPostalCodes(): Array<string> {
  * @param postalCode the postal code
  * @param todayDate the date from which yesterday to start the scan
  */
-function readPreviousDatabase(postalCode: string, todayDate: string): Array<Apartment> {
+function readPreviousDatabase(postalCode: string, todayDate: string): [Array<Apartment>, string] {
     const firstDate = "20201101";
 
     var date: string = toYesterday(parseDate(todayDate));
 
     while (date !== firstDate) {
         if (databaseExists(postalCode, date)) {
-            return databaseRead(postalCode, date);
+            return [databaseRead(postalCode, date), date];
         }
         date = toYesterday(parseDate(date));
     }
@@ -371,52 +370,61 @@ function parseDate(str): Date {
     }
 }
 
+function filterPostalcodes(postalCodes:Array<string>, date:string) {
+    return postalCodes.filter(postalCode => {
+        if (databaseExists(postalCode, date)) {
+            console.log(`postalCode ${postalCode} already done for ${date}`);
+            return false;
+        } else {
+            return true;
+        }
+    });
+}
+
 async function main() {
     const dateToday = formatDate(new Date());
 
-    getPostalCodes()
-        .forEach(postalCode => {
-            if (databaseExists(postalCode, dateToday)) {
-                console.log(`postalCode ${postalCode} already done for ${dateToday}`);
-                return;
+    const postalCodes:Array<string> = filterPostalcodes(getPostalCodes(), dateToday);        
+    
+    for (const postalCode of postalCodes) {
+        const apartments:Array<Apartment> = await pullAndFingerprint(postalCode);
+        if (!databaseExists(postalCode)) {
+            console.log(`No root DB for ${postalCode}, creating`);
+            databaseWrite([], postalCode);
+        }
+        const rootApartments: Array<Apartment> = databaseRead(postalCode);                    
+        const [previousApartments, previousDate] = readPreviousDatabase(postalCode, dateToday);
+        if (previousApartments === null) {
+            console.log(`No previousApartments for ${postalCode} dateToday ${dateToday}`)
+        }
+
+        apartments.forEach(apartment => {
+            const previousApartment = previousApartments != null ? previousApartments.find(previousApartment => apartment.fingerprint === previousApartment.fingerprint) : null;
+            const rootApartment = rootApartments.find(rootApartment => apartment.fingerprint === rootApartment.fingerprint);
+            if (previousApartment !== undefined) {                            
+                if (rootApartment === undefined) {
+                    console.log(`ERROR: BUG: apartment of ${postalCode} in previous (${previousDate}) but not in root ${apartment.fingerprint}. Not "fixing", i.e. adding to root`);
+                } else {
+                    rootApartment.lastSeenDate = dateToday;
+                }
+            } else {
+                if (rootApartment !== undefined) {
+                    console.log(`WARN: apartment of ${postalCode} not in previous (${previousDate}), but exists in root. Very unlikely that there's exactly the same apartment again. Not creating a duplicate ${apartment.fingerprint}`);
+                } else {
+                    const newRootApartment = Object.assign({}, apartment);
+                    newRootApartment.firstSeenDate = dateToday;
+                    newRootApartment.lastSeenDate = dateToday;
+                    assignId(newRootApartment);
+                    rootApartments.push(newRootApartment);
+
+                    console.log(`NEW: id: ${newRootApartment.id} fingerprint: ${newRootApartment.fingerprint}`);
+                }
             }
-            pullAndFingerprint(postalCode)
-                .then(apartments => {
-                    if (!databaseExists(postalCode)) {
-                        console.log(`No root DB for ${postalCode}, creating`);
-                        databaseWrite([], postalCode);
-                    }
-                    const rootApartments: Array<Apartment> = databaseRead(postalCode);                    
-                    const previousApartments: Array<Apartment> = readPreviousDatabase(postalCode, dateToday);
-
-                    apartments.forEach(apartment => {
-                        const previousApartment = previousApartments != null ? previousApartments.find(previousApartment => apartment.fingerprint === previousApartment.fingerprint) : null;
-                        const rootApartment = rootApartments.find(rootApartment => apartment.fingerprint === rootApartment.fingerprint);
-                        if (previousApartment !== null) {                            
-                            if (rootApartment === undefined) {
-                                console.log(`ERROR: BUG: apartment in previous but not in root ${apartment.fingerprint}. Not "fixing", i.e. adding to root`);
-                            } else {
-                                rootApartment.lastSeenDate = dateToday;
-                            }
-                        } else {
-                            if (rootApartment !== undefined) {
-                                console.log(`WARN: apartment not in previous, but exists in root. Very unlikely that there's exactly the same apartment again. Not creating a duplicate ${apartment.fingerprint}`);
-                            } else {
-                                const newRootApartment = Object.assign({}, apartment);
-                                newRootApartment.firstSeenDate = dateToday;
-                                newRootApartment.lastSeenDate = dateToday;
-                                assignId(newRootApartment);
-                                rootApartments.push(newRootApartment);
-
-                                console.log(`NEW: id: ${newRootApartment.id} fingerprint: ${newRootApartment.fingerprint}`);
-                            }
-                        }
-                    });
-                    
-                    databaseWrite(rootApartments, postalCode);
-                    databaseWrite(apartments, postalCode, dateToday);
-                });
         });
+        
+        databaseWrite(rootApartments, postalCode);
+        databaseWrite(apartments, postalCode, dateToday);
+    }
 }
 
 main();
