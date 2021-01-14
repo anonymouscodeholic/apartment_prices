@@ -5,5 +5,6 @@ Apartment prices pulls the apartment sale prices from the Finnish database of ap
 ## Running
 
 ```
+npm install
 npx ts-node index.ts
 ```
