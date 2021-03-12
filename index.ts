@@ -293,7 +293,7 @@ function getPostalCodes(): Array<string> {
 
 /**
  * Tries to read the db of yesterday of todayDate, then yesterday of that etc
- * until finds file. If doesn't find, returns null.
+ * until finds file. If doesn't find, returns [null, null].
  * 
  * @param postalCode the postal code
  * @param todayDate the date from which yesterday to start the scan
@@ -310,7 +310,7 @@ function readPreviousDatabase(postalCode: string, todayDate: string): [Array<Apa
         date = toYesterday(parseDate(date));
     }
 
-    return null;
+    return [null, null];
 
     function toYesterday(date: Date): string {
         date.setDate(date.getDate() - 1);
@@ -401,7 +401,7 @@ async function main() {
         apartments.forEach(apartment => {
             const previousApartment = previousApartments != null ? previousApartments.find(previousApartment => apartment.fingerprint === previousApartment.fingerprint) : null;
             const rootApartment = rootApartments.find(rootApartment => apartment.fingerprint === rootApartment.fingerprint);
-            if (previousApartment !== undefined) {                            
+            if (previousApartment !== undefined && previousApartment !== null) {                            
                 if (rootApartment === undefined) {
                     console.log(`ERROR: BUG: apartment of ${postalCode} in previous (${previousDate}) but not in root ${apartment.fingerprint}. Not "fixing", i.e. adding to root`);
                 } else {
