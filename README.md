@@ -10,3 +10,5 @@ Note this repo does not store the fecthed results anywhere due to licensing issu
 npm install
 npx ts-node index.ts
 ```
+
+The results will appear in the `db`-directory.
