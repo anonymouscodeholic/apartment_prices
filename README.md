@@ -4,6 +4,8 @@ Apartment prices pulls the apartment sale prices from the Finnish database of ap
 
 Note this repo does not store the fecthed results anywhere due to licensing issues. The site from which the data is fecthed doesn't say anything about licensing of the fetched data, but to not take any decisions on whether or not it's permitted to share the results, the decision here is not to store.
 
+The file `postalcodes.json` comes from the output of https://github.com/anonymouscodeholic/postal-codes-finland. It can be manually updated in this repo if needed.
+
 ## Running
 
 ```
